@@ -1,0 +1,9 @@
+Title,URL handle,Description,Vendor,Type,Tags,Published on online store,Status,SKU,Option1 name,Option1 value,Price,Inventory tracker,Inventory quantity,Requires shipping,Weight value (grams)
+Basic t-shirt vit,basic-t-shirt-vit,Enkel t-shirt i ekologisk bomull.,Sam Bolaget,T-shirt,testdata,TRUE,active,SB-TSH-001,Title,Default Title,199.00,shopify,25,TRUE,180
+Basic t-shirt svart,basic-t-shirt-svart,Enkel t-shirt i ekologisk bomull.,Sam Bolaget,T-shirt,testdata,TRUE,active,SB-TSH-002,Title,Default Title,199.00,shopify,30,TRUE,180
+Hoodie grå,hoodie-gra,Mjuk hoodie med känguruficka.,Sam Bolaget,Hoodie,testdata,TRUE,active,SB-HOD-001,Title,Default Title,499.00,shopify,12,TRUE,550
+Jeans straight blå,jeans-straight-bla,Jeans med rak passform.,Sam Bolaget,Jeans,testdata,TRUE,active,SB-JNS-001,Title,Default Title,599.00,shopify,15,TRUE,650
+Stickad tröja beige,stickad-troja-beige,Stickad tröja i ullblandning.,Sam Bolaget,Tröja,testdata,TRUE,active,SB-KNT-001,Title,Default Title,449.00,shopify,8,TRUE,450
+Chinos khaki,chinos-khaki,Chinos i bomullstwill.,Sam Bolaget,Byxor,testdata,TRUE,active,SB-CHN-001,Title,Default Title,499.00,shopify,10,TRUE,500
+Jeansjacka,jeansjacka,Klassisk jeansjacka.,Sam Bolaget,Jacka,testdata,TRUE,active,SB-JKT-001,Title,Default Title,799.00,shopify,5,TRUE,850
+Mössa svart,mossa-svart,Ribbstickad mössa.,Sam Bolaget,Accessoar,testdata,TRUE,active,SB-ACC-001,Title,Default Title,149.00,shopify,40,TRUE,100
