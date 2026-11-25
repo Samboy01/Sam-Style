@@ -1,11 +1,45 @@
 services:
+  # Integrationens egen databas (används från fas 2b)
   db:
     image: postgres:17
-    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
 
+  # Affärssystemets databas – ett separat system, därför en egen databasserver
+  erp-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${ERP_DB_USER}
+      POSTGRES_PASSWORD: ${ERP_DB_PASSWORD}
+      POSTGRES_DB: ${ERP_DB_NAME}
+    volumes:
+      - erp-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # Mini-ERP: REST-API på http://localhost:8001 (testsida på /docs)
+  mini-erp:
+    build: ./mini-erp
+    environment:
+      ERP_DATABASE_URL: postgresql+psycopg://${ERP_DB_USER}:${ERP_DB_PASSWORD}@erp-db:5432/${ERP_DB_NAME}
+      ERP_API_KEY: ${ERP_API_KEY}
+      ERP_FAILURE_MODE: ${ERP_FAILURE_MODE:-none}
+      ERP_SLOW_SECONDS: ${ERP_SLOW_SECONDS:-10}
+    ports:
+      - "8001:8000"
+    depends_on:
+      erp-db:
+        condition: service_healthy
+
 volumes:
   db-data:
+  erp-db-data:
