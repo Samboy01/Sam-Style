@@ -13,6 +13,8 @@ import httpx
 import pika.exceptions
 
 from . import broker, erp
+from . import status as order_status
+from .db import SessionLocal, create_tables
 from .mapping import MappingError, map_order
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -61,16 +63,24 @@ def handle_order(body: bytes, create_order=erp.create_order) -> Outcome:
 
 def on_message(channel, method, properties, body: bytes) -> None:
     headers = dict(properties.headers or {})
-    ids = f"shopify_order_id={headers.get('shopify_order_id')} correlation_id={headers.get('correlation_id')}"
+    order_id = headers.get("shopify_order_id")
+    ids = f"shopify_order_id={order_id} correlation_id={headers.get('correlation_id')}"
+
+    with SessionLocal() as db:
+        order_status.mark_sent(db, order_id, headers.get("shopify_order_no"), headers.get("correlation_id"))
 
     outcome = handle_order(body)
 
     if outcome.ok:
+        with SessionLocal() as db:
+            order_status.mark_done(db, order_id, outcome.erp_order_id)
         log.info("Order klar: %s erp_order_id=%s %s", ids, outcome.erp_order_id, outcome.reason)
     else:
         headers["error_reason"] = outcome.reason
         headers["failed_at"] = datetime.now(timezone.utc).isoformat()
         broker.publish(channel, broker.DEAD, body, headers)
+        with SessionLocal() as db:
+            order_status.mark_failed(db, order_id, outcome.reason)
         log.warning("Order till felkön: %s orsak=%s", ids, outcome.reason)
 
     # Bekräfta först när ordern är klar eller ligger säkert i felkön.
@@ -79,6 +89,7 @@ def on_message(channel, method, properties, body: bytes) -> None:
 
 
 def main() -> None:
+    create_tables()
     while True:
         try:
             connection = broker.connect()

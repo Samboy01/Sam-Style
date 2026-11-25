@@ -1,5 +1,5 @@
 services:
-  # Integrationens egen databas (används från fas 2b)
+  # Integrationens egen databas (statustabellen)
   db:
     image: postgres:17
     environment:
@@ -10,6 +10,11 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
 
   # Affärssystemets databas – ett separat system, därför en egen databasserver
   erp-db:
@@ -59,25 +64,35 @@ services:
   # Integrationstjänsten: tar emot webhooks på http://localhost:8000
   integration:
     build: ./integration
+    restart: unless-stopped
     environment:
       SHOPIFY_WEBHOOK_SECRET: ${SHOPIFY_WEBHOOK_SECRET}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      INTEGRATION_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      INTEGRATION_ADMIN_KEY: ${INTEGRATION_ADMIN_KEY}
     ports:
       - "8000:8000"
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      db:
         condition: service_healthy
 
   # Workern: hämtar ordrar från kön och skickar dem till mini-ERP:t
   worker:
     build: ./integration
     command: ["python", "-m", "app.worker"]
+    # Kraschar workern startas den om, och ordern den höll på med levereras igen.
+    restart: unless-stopped
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
       ERP_URL: http://mini-erp:8000
       ERP_API_KEY: ${ERP_API_KEY}
+      INTEGRATION_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      db:
         condition: service_healthy
       mini-erp:
         condition: service_started

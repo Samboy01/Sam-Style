@@ -18,6 +18,7 @@ docker compose up -d --build
 ```
 
 - Webhook: http://localhost:8000/webhooks/shopify/orders (nås från Shopify via tunnel)
+- Orderstatus: http://localhost:8000/admin/orders och `/admin/orders/{shopify_order_id}`, kräver headern `X-Admin-Key` med värdet av `INTEGRATION_ADMIN_KEY` i `.env`. Testsida på http://localhost:8000/docs.
 - RabbitMQ:s webbgränssnitt: http://localhost:15672 (användare och lösenord: `RABBITMQ_USER` och `RABBITMQ_PASSWORD` i `.env`)
 
 ## Filer
@@ -30,6 +31,8 @@ docker compose up -d --build
 | `app/worker.py` | Workern |
 | `app/mapping.py` | Shopify-order → ERP-order |
 | `app/erp.py` | Anrop till mini-ERP:t |
+| `app/models.py`, `app/status.py` | Statustabellen `order_status`: mottagen → skickad → klar / fel |
+| `app/db.py` | Databasanslutning |
 | `app/config.py` | Inställningar från miljövariabler |
 
 ## Tester
