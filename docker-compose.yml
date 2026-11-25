@@ -40,6 +40,14 @@ services:
       erp-db:
         condition: service_healthy
 
+  # Integrationstjänsten: tar emot webhooks på http://localhost:8000
+  integration:
+    build: ./integration
+    environment:
+      SHOPIFY_WEBHOOK_SECRET: ${SHOPIFY_WEBHOOK_SECRET}
+    ports:
+      - "8000:8000"
+
 volumes:
   db-data:
   erp-db-data:
