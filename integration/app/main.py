@@ -7,9 +7,11 @@ import uuid
 from fastapi import FastAPI, Header, HTTPException, Request, status
 
 from . import config
+from .broker import publish_order
 from .shopify import verify_webhook
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logging.getLogger("pika").setLevel(logging.WARNING)
 log = logging.getLogger("integration")
 
 app = FastAPI(
@@ -63,8 +65,20 @@ async def shopify_order_webhook(
         correlation_id,
     )
 
-    # TODO (#11): lägg ordern på kön orders.incoming
+    # Steg 3: lägg ordern på kön. Hela Shopify-ordern sparas, så att den kan mappas om
+    # och köras om om mappningen behöver rättas.
     # TODO (#12): spara ordern med status "mottagen"
+    headers = {
+        "correlation_id": correlation_id,
+        "shopify_order_id": str(order.get("id")),
+        "shopify_webhook_id": x_shopify_webhook_id,
+    }
+    try:
+        publish_order(raw_body, headers)
+    except Exception:
+        # Kön är inte nåbar. Svara 503 så att Shopify skickar ordern igen senare (IFK1).
+        log.exception("Kunde inte lägga ordern på kön (correlation_id=%s)", correlation_id)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Kön är inte tillgänglig")
 
     # Steg 4: svara direkt. Själva överföringen görs av workern.
     return {"status": "mottagen", "correlation_id": correlation_id}

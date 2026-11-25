@@ -5,13 +5,22 @@ import hashlib
 import hmac
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app import config
+from app import config, main
 from app.main import app
 from app.shopify import verify_webhook
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def fake_queue(monkeypatch):
+    """Ersätter kön med en lista, så att testerna inte behöver RabbitMQ."""
+    published = []
+    monkeypatch.setattr(main, "publish_order", lambda body, headers: published.append((body, headers)))
+    return published
 SECRET = config.SHOPIFY_WEBHOOK_SECRET
 URL = "/webhooks/shopify/orders"
 
@@ -60,25 +69,38 @@ def post(body: bytes, signature: str | None, topic: str = "orders/paid"):
     return client.post(URL, content=body, headers=headers)
 
 
-def test_giltig_order_tas_emot():
+def test_giltig_order_laggs_pa_kon(fake_queue):
     r = post(ORDER, sign(ORDER))
     assert r.status_code == 200
     assert r.json()["status"] == "mottagen"
-    assert r.json()["correlation_id"]
+    body, headers = fake_queue[0]
+    assert body == ORDER
+    assert headers["shopify_order_id"] == "5123456789012"
+    assert headers["correlation_id"] == r.json()["correlation_id"]
 
 
-def test_ogiltig_signatur_ger_401():
+def test_ogiltig_signatur_ger_401_och_inget_pa_kon(fake_queue):
     assert post(ORDER, sign(ORDER, "fel-hemlighet")).status_code == 401
+    assert fake_queue == []
+
+
+def test_kon_nere_ger_503(monkeypatch):
+    """IFK1: om kön inte går att nå svarar vi 503, så att Shopify skickar ordern igen."""
+    def broken(body, headers):
+        raise ConnectionError("RabbitMQ nere")
+    monkeypatch.setattr(main, "publish_order", broken)
+    assert post(ORDER, sign(ORDER)).status_code == 503
 
 
 def test_saknad_signatur_ger_401():
     assert post(ORDER, None).status_code == 401
 
 
-def test_annat_amne_ignoreras():
+def test_annat_amne_ignoreras(fake_queue):
     r = post(ORDER, sign(ORDER), topic="orders/create")
     assert r.status_code == 200
     assert r.json()["status"] == "ignorerad"
+    assert fake_queue == []
 
 
 def test_epost_loggas_inte(caplog):

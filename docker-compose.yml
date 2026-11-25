@@ -40,14 +40,49 @@ services:
       erp-db:
         condition: service_healthy
 
+  # Kön. Webbgränssnitt på http://localhost:15672
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
   # Integrationstjänsten: tar emot webhooks på http://localhost:8000
   integration:
     build: ./integration
     environment:
       SHOPIFY_WEBHOOK_SECRET: ${SHOPIFY_WEBHOOK_SECRET}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
     ports:
       - "8000:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  # Workern: hämtar ordrar från kön och skickar dem till mini-ERP:t
+  worker:
+    build: ./integration
+    command: ["python", "-m", "app.worker"]
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      ERP_URL: http://mini-erp:8000
+      ERP_API_KEY: ${ERP_API_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mini-erp:
+        condition: service_started
 
 volumes:
   db-data:
   erp-db-data:
+  rabbitmq-data:
